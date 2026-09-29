@@ -1,0 +1,166 @@
+name: Publish container image
+
+on:
+  push:
+    branches: [main]
+    tags: ['*']
+  pull_request:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild even if this source combination is already published
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-cx-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/blissky/check-cx
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out packaging repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate packaging scripts
+        run: |
+          node --check container/configure.mjs
+          node --check container/migrate.mjs
+          node --check container/init-admin.mjs
+          node --check patches/admin-password/apply.mjs
+          node --check scripts/resolve-upstream.mjs
+          bash -n container/entrypoint.sh container/healthcheck.sh
+          shellcheck container/*.sh
+          docker compose config --quiet
+
+      - name: Resolve stable upstream tags
+        id: upstream
+        run: node scripts/resolve-upstream.mjs
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request' && github.repository_owner == 'blissky'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Check whether this build has already been published
+        id: existing
+        env:
+          BUILD_TAG: ${{ steps.upstream.outputs.build_tag }}
+          FORCE: ${{ inputs.force || false }}
+          CAN_PUBLISH: ${{ github.event_name != 'pull_request' && github.repository_owner == 'blissky' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'skip=false' >> "$GITHUB_OUTPUT"
+          if [[ "$CAN_PUBLISH" != true || "$FORCE" == true ]]; then exit 0; fi
+          if result=$(docker buildx imagetools inspect "${IMAGE_NAME}:${BUILD_TAG}" 2>&1); then
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+            echo 'This combination of upstream commits and packaging revision is already published.'
+          elif ! grep -Eqi 'not found|manifest unknown|name unknown' <<< "$result"; then
+            printf '%s\n' "$result" >&2
+            exit 1
+          fi
+
+      - name: Check out panel source
+        if: steps.existing.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: BingZi-233/check-cx
+          ref: ${{ steps.upstream.outputs.panel_sha }}
+          path: .upstream/panel
+          persist-credentials: false
+
+      - name: Check out admin source
+        if: steps.existing.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: BingZi-233/check-cx-admin
+          ref: ${{ steps.upstream.outputs.admin_sha }}
+          path: .upstream/admin
+          persist-credentials: false
+
+      - name: Build single-container image
+        if: steps.existing.outputs.skip != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          build-contexts: |
+            panel=./.upstream/panel
+            admin=./.upstream/admin
+          platforms: linux/amd64
+          load: true
+          tags: check-cx:test
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.upstream.outputs.panel_tag }}
+            io.blissky.check-cx.upstream-revision=${{ steps.upstream.outputs.panel_sha }}
+            io.blissky.check-cx.admin-version=${{ steps.upstream.outputs.admin_tag }}
+            io.blissky.check-cx.admin-revision=${{ steps.upstream.outputs.admin_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify container readiness before publishing
+        if: steps.existing.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          trap 'docker logs check-cx-verify; docker rm -f check-cx-verify' EXIT
+          docker run -d --name check-cx-verify \
+            -e ADMIN_EMAIL=ci@example.com -e ADMIN_PASSWORD="$(openssl rand -hex 24)" check-cx:test
+          for attempt in {1..120}; do
+            if [[ "$(docker inspect --format '{{.State.Health.Status}}' check-cx-verify)" == healthy ]]; then
+              exit 0
+            fi
+            if [[ "$(docker inspect --format '{{.State.Running}}' check-cx-verify)" != true ]]; then exit 1; fi
+            sleep 2
+          done
+          echo 'Container readiness timed out.' >&2
+          exit 1
+
+      - name: Publish tested image
+        if: steps.existing.outputs.skip != 'true' && github.event_name != 'pull_request' && github.repository_owner == 'blissky'
+        env:
+          PANEL_TAG: ${{ steps.upstream.outputs.panel_tag }}
+          PANEL_VERSION: ${{ steps.upstream.outputs.panel_version }}
+          BUILD_TAG: ${{ steps.upstream.outputs.build_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Write the completion marker last, after all aliases succeed.
+          for tag in "$PANEL_TAG" "$PANEL_VERSION" latest "$BUILD_TAG"; do
+            docker tag check-cx:test "${IMAGE_NAME}:${tag}"
+            docker push "${IMAGE_NAME}:${tag}"
+          done
+          {
+            echo '### Published check-cx'
+            echo "- Image: ${IMAGE_NAME}:${BUILD_TAG}"
+            echo "- Panel: ${PANEL_TAG}"
+            echo '- Container readiness check passed.'
+          } >> "$GITHUB_STEP_SUMMARY"

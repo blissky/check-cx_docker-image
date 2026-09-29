@@ -1,0 +1,6 @@
+**
+!Dockerfile
+!container/
+!container/**
+!patches/
+!patches/**

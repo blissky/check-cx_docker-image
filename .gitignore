@@ -1,0 +1,10 @@
+/docs/
+/.claude/
+/.upstream/
+/.test-data/
+/tests/
+**/__pycache__/
+/data/
+/backups/
+/.env
+/.env.*

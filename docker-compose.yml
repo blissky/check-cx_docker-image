@@ -1,0 +1,25 @@
+services:
+  check-cx:
+    image: ghcr.io/blissky/check-cx:latest
+    restart: unless-stopped
+    stop_grace_period: 60s
+    ports:
+      - "0.0.0.0:3000:3000"
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - ./data:/data
+    environment:
+      # 直接在此配置本地管理员账号（邮箱格式）和密码，密码至少 12 个字符。
+      ADMIN_EMAIL: "admin@example.com"
+      ADMIN_PASSWORD: ""
+      APP_URL: "http://localhost:3001"
+      CHECK_NODE_ID: "local"
+      CHECK_POLL_INTERVAL_SECONDS: "60"
+      CHECK_CONCURRENCY: "5"
+      OFFICIAL_STATUS_CHECK_INTERVAL_SECONDS: "300"
+      HISTORY_RETENTION_DAYS: "30"
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
