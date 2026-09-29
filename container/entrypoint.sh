@@ -28,8 +28,8 @@ fi
 
 children=()
 postgres_pid=''
-# Invoked indirectly by the EXIT trap.
-# shellcheck disable=SC2329
+# Invoked indirectly by the EXIT trap; older ShellCheck versions report SC2317.
+# shellcheck disable=SC2317,SC2329
 cleanup() {
   trap - EXIT
   # Keep Postgres running until application processes have stopped.
