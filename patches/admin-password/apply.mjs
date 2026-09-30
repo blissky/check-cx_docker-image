@@ -18,6 +18,7 @@ replace('lib/admin/auth.ts', '!isGitHubIdentity(user)', '!isEmailIdentity(user)'
 cpSync(join(directory, 'login-form.tsx'), join(target, 'components/login-form.tsx'));
 cpSync(join(directory, 'login-page.tsx'), join(target, 'app/login/page.tsx'));
 cpSync(join(directory, 'sign-in-route.ts'), join(target, 'app/auth/sign-in/route.ts'));
+cpSync(join(directory, 'sign-out-route.ts'), join(target, 'app/auth/sign-out/route.ts'));
 // The user directory is still the authorization allowlist, now for local email accounts.
 const usersPage = join(target, 'app/dashboard/users/page.tsx');
 writeFileSync(usersPage, readFileSync(usersPage, 'utf8').replaceAll('GitHub', '本地'));
