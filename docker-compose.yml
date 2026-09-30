@@ -2,9 +2,11 @@ services:
   check-cx:
     image: ghcr.io/blissky/check-cx:latest
     restart: unless-stopped
-    stop_grace_period: 60s
+    stop_grace_period: 60s    # 停止容器时最多等待 60 秒，让应用退出、数据库安全关闭；超时后强制终止。
     ports:
+      # 3000：监控面板，展示模型/API 的可用性和检测历史，允许远程访问。
       - "0.0.0.0:3000:3000"
+      # 3001：管理后台，配置模型、Provider、分组等，默认仅宿主机本地可访问。
       - "127.0.0.1:3001:3001"
     volumes:
       - ./data:/data
@@ -12,12 +14,12 @@ services:
       # 直接在此配置本地管理员账号（邮箱格式）和密码，密码至少 12 个字符。
       ADMIN_EMAIL: "admin@example.com"
       ADMIN_PASSWORD: ""
-      APP_URL: "http://localhost:3001"
-      CHECK_NODE_ID: "local"
-      CHECK_POLL_INTERVAL_SECONDS: "60"
-      CHECK_CONCURRENCY: "5"
-      OFFICIAL_STATUS_CHECK_INTERVAL_SECONDS: "300"
-      HISTORY_RETENTION_DAYS: "30"
+      CHECK_NODE_ID: "local" # 检测节点标识，用于选主和续租；单节点保持 local，共用数据库的多个节点必须各不相同。
+      CHECK_POLL_INTERVAL_SECONDS: "600" # 模型/API 检测的轮询间隔，单位秒，范围 15–600；600 表示每10分钟一轮。
+      CHECK_CONCURRENCY: "5"      # 同时执行的检测任务上限，范围 1–20；5 表示最多并发检测 5 个任务。
+      # 读取官方 Status 站点的 JSON 状态接口，不调用模型推理 API，不使用模型 API Key。
+      OFFICIAL_STATUS_CHECK_INTERVAL_SECONDS: "300"      # 官方状态检查间隔，单位秒，范围 60–3600；300 表示每 5 分钟一次。
+      HISTORY_RETENTION_DAYS: "30"      # 检测历史保留天数，范围 7–365；30 表示保留最近 30 天，过期记录由应用定期清理。
     logging:
       driver: local
       options:

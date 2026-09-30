@@ -18,10 +18,9 @@ ghcr.io/blissky/check-cx
 environment:
   ADMIN_EMAIL: "admin@example.com"
   ADMIN_PASSWORD: "替换为至少12个字符的强密码"
-  APP_URL: "http://你的服务器地址:3001"
 ```
 
-账号使用邮箱格式，仅作为本地账号标识，不要求配置邮箱服务。仓库中的密码默认留空，未填写时容器会报错退出。远程直接访问后台还需将 `ports` 中的 `127.0.0.1:3001:3001` 改为 `0.0.0.0:3001:3001`；推荐生产环境通过 HTTPS 反向代理访问，并相应设置 `APP_URL`。
+账号使用邮箱格式，仅作为本地账号标识，不要求配置邮箱服务。仓库中的密码默认留空，未填写时容器会报错退出。默认通过 `http://localhost:3001` 访问后台，无需配置 `APP_URL`。远程直接访问后台时，将 `ports` 中的 `127.0.0.1:3001:3001` 改为 `0.0.0.0:3001:3001`，并在 `environment` 中添加 `APP_URL: "http://你的服务器地址:3001"`；推荐生产环境通过 HTTPS 反向代理访问，并将 `APP_URL` 设为对应的 HTTPS 地址。
 
 然后执行：
 
@@ -48,7 +47,7 @@ PostgreSQL、REST、Auth 和 API 网关只监听容器内回环地址，不对�
 
 每次容器启动都会确保配置的管理员存在，并同步其密码。更改 Compose 中的账号或密码后执行 `docker compose up -d --force-recreate`。修改账号会创建或接管新邮箱对应的本地账号；旧账号不会被删除，但不再因旧配置自动获得管理员权限，若曾加入允许名单需另行禁用。
 
-`APP_URL` 必须与浏览器实际访问后台的地址一致，是不含子路径的 HTTP(S) 地址。通过 HTTPS 反向代理访问时，例如设置为 `https://admin.example.com`，代理到宿主机 `3001`。登录入口检查请求来源，地址不一致会被拒绝。本机测试可使用 `http://localhost:3001`。
+`APP_URL` 为可选配置，省略时使用 `http://localhost:3001`，适用于本机访问或映射到本机 3001 端口的 SSH 隧道。使用其他 IP、域名或端口时，在 `environment` 中添加该项，值必须与浏览器实际访问后台的地址一致，是不含子路径的 HTTP(S) 地址。通过 HTTPS 反向代理访问时，例如设置为 `https://admin.example.com`，代理到宿主机 `3001`。登录入口检查请求来源，地址不一致会被拒绝。
 
 普通成员的角色和分组允许名单仍由上游后台管理；仅增加允许名单不会自动创建 Auth 密码账号。本镜像自动配置的是 Compose 指定的管理员，不额外提供公开注册或邮件找回密码。需要重置管理员密码时修改 Compose 并重建容器即可。
 
@@ -111,12 +110,12 @@ docker compose exec -T check-cx sh -c 'gosu postgres pg_dump -Fc > /data/databas
 | `image` | `ghcr.io/blissky/check-cx:latest` | 镜像地址与标签 |
 | `ADMIN_EMAIL` | `admin@example.com` | 在 Compose 的 environment 中配置 |
 | `ADMIN_PASSWORD` | 空，必须填写 | 至少 12 个字符，在 Compose 中配置 |
-| `APP_URL` | `http://localhost:3001` | 浏览器实际访问后台的地址 |
+| `APP_URL`（可选） | `http://localhost:3001` | 默认 Compose 已省略；使用其他后台访问地址时添加 |
 | `ports` | `0.0.0.0:3000:3000` / `127.0.0.1:3001:3001` | 面板 / 后台，格式为宿主机地址:宿主机端口:容器端口 |
 | `CHECK_NODE_ID` | `local` | 检测节点标识 |
 | `CHECK_POLL_INTERVAL_SECONDS` | `60` | 检测周期，秒 |
 | `CHECK_CONCURRENCY` | `5` | 检测并发数 |
-| `OFFICIAL_STATUS_CHECK_INTERVAL_SECONDS` | `300` | 官方状态检查周期，秒 |
+| `OFFICIAL_STATUS_CHECK_INTERVAL_SECONDS` | `300` | 官方 Status 站点 JSON 接口的轮询间隔，单位秒，范围 60–3600；不调用模型推理 API、不使用模型 API Key |
 | `HISTORY_RETENTION_DAYS` | `30` | 历史保留天数，最终边界由上游应用控制 |
 
 首次配置后还需在管理后台添加模型和 Provider，空数据库不会自动添加演示 API 密钥。健康检查覆盖数据库、REST、Auth、面板 API 和后台登录页；任一关键进程退出时整个容器会退出，由 `restart: unless-stopped` 重新启动。
