@@ -14,7 +14,6 @@ services:
       # 直接在此配置本地管理员账号（邮箱格式）和密码，密码至少 12 个字符。
       ADMIN_EMAIL: "admin@example.com"
       ADMIN_PASSWORD: ""
-      CHECK_NODE_ID: "local" # 检测节点标识，用于选主和续租；单节点保持 local，共用数据库的多个节点必须各不相同。
       CHECK_POLL_INTERVAL_SECONDS: "600" # 模型/API 检测的轮询间隔，单位秒，范围 15–600；600 表示每10分钟一轮。
       CHECK_CONCURRENCY: "5"      # 同时执行的检测任务上限，范围 1–20；5 表示最多并发检测 5 个任务。
       # 读取官方 Status 站点的 JSON 状态接口，不调用模型推理 API，不使用模型 API Key。

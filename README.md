@@ -103,7 +103,7 @@ docker compose exec -T check-cx sh -c 'gosu postgres pg_dump -Fc > /data/databas
 
 ## 配置项
 
-完整示例见 `docker-compose.yml`，直接修改对应配置值即可。主要参数：
+完整示例见 `docker-compose.yml`，直接修改对应配置值即可。本镜像面向单容器部署，启动时在内部固定 `CHECK_NODE_ID=local`，无需在 Compose 中配置；保留上游的轮询选主和租约续期逻辑。主要参数：
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -112,7 +112,6 @@ docker compose exec -T check-cx sh -c 'gosu postgres pg_dump -Fc > /data/databas
 | `ADMIN_PASSWORD` | 空，必须填写 | 至少 12 个字符，在 Compose 中配置 |
 | `APP_URL`（可选） | `http://localhost:3001` | 默认 Compose 已省略；使用其他后台访问地址时添加 |
 | `ports` | `0.0.0.0:3000:3000` / `127.0.0.1:3001:3001` | 面板 / 后台，格式为宿主机地址:宿主机端口:容器端口 |
-| `CHECK_NODE_ID` | `local` | 检测节点标识 |
 | `CHECK_POLL_INTERVAL_SECONDS` | `60` | 检测周期，秒 |
 | `CHECK_CONCURRENCY` | `5` | 检测并发数 |
 | `OFFICIAL_STATUS_CHECK_INTERVAL_SECONDS` | `300` | 官方 Status 站点 JSON 接口的轮询间隔，单位秒，范围 60–3600；不调用模型推理 API、不使用模型 API Key |

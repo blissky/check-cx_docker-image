@@ -48,6 +48,8 @@ export function environment(secrets, input) {
   if (!input.ADMIN_PASSWORD || input.ADMIN_PASSWORD.length < 12) throw new Error('Set ADMIN_PASSWORD to at least 12 characters in docker-compose.yml.');
   const internalUrl = 'http://127.0.0.1:8000';
   return {
+    // A single-container deployment always uses the same polling node identity.
+    CHECK_NODE_ID: 'local',
     APP_URL: appUrl,
     ADMIN_EMAIL: email,
     ADMIN_EMAILS: email,
