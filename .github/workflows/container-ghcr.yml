@@ -48,6 +48,7 @@ jobs:
           node --check container/migrate.mjs
           node --check container/init-admin.mjs
           node --check patches/admin-password/apply.mjs
+          node --check patches/site-branding/apply.mjs
           node --check scripts/resolve-upstream.mjs
           bash -n container/entrypoint.sh container/healthcheck.sh
           shellcheck container/*.sh

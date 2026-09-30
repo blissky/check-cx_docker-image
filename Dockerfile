@@ -9,7 +9,8 @@ WORKDIR /src
 COPY --from=panel /package.json /pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY --from=panel / ./
-RUN pnpm build
+COPY patches/site-branding /opt/site-branding
+RUN node /opt/site-branding/apply.mjs panel /src && pnpm build
 
 FROM node-base AS admin-build
 WORKDIR /src
@@ -17,7 +18,10 @@ COPY --from=admin /package.json /pnpm-lock.yaml /pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY --from=admin / ./
 COPY patches/admin-password /opt/admin-password
-RUN node /opt/admin-password/apply.mjs /src && pnpm lint && pnpm build
+COPY patches/site-branding /opt/site-branding
+RUN node /opt/admin-password/apply.mjs /src \
+    && node /opt/site-branding/apply.mjs admin /src \
+    && pnpm lint && pnpm build
 
 # Match the versions used by the upstream self-hosted stack.
 # The PostgREST amd64 image contains a static /bin/postgrest binary.
