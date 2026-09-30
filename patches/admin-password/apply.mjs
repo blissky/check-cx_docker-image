@@ -15,6 +15,25 @@ function replace(path, before, after) {
 replace('lib/admin/auth.ts', 'function isGitHubIdentity(', 'function isEmailIdentity(');
 replace('lib/admin/auth.ts', 'return provider === "github" || providers.includes("github")', 'return provider === "email" || providers.includes("email")');
 replace('lib/admin/auth.ts', '!isGitHubIdentity(user)', '!isEmailIdentity(user)');
+// Accept the browser's current origin behind proxies without deployment-specific allowlists.
+replace('proxy.ts', 'export async function proxy(request: NextRequest) {', `export async function proxy(request: NextRequest) {
+  const origin = request.headers.get("origin")
+  if (request.method === "POST" && origin) {
+    try {
+      const url = new URL(origin)
+      if ((url.protocol === "http:" || url.protocol === "https:") && url.origin === origin) {
+        request.headers.set("x-forwarded-host", url.host)
+        request.headers.set("x-forwarded-proto", url.protocol.slice(0, -1))
+      }
+    } catch {
+      // Leave invalid origins unchanged for Next.js to handle.
+    }
+  }
+`);
+replace('proxy.ts', '  return updateSession(request)', `  const response = await updateSession(request)
+  // Let Nginx stream Server Actions responses even when proxy buffering is enabled.
+  response.headers.set("X-Accel-Buffering", "no")
+  return response`);
 cpSync(join(directory, 'login-form.tsx'), join(target, 'components/login-form.tsx'));
 cpSync(join(directory, 'login-page.tsx'), join(target, 'app/login/page.tsx'));
 cpSync(join(directory, 'sign-in-route.ts'), join(target, 'app/auth/sign-in/route.ts'));

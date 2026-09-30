@@ -49,16 +49,22 @@ PostgreSQL、REST、Auth 和 API 网关只监听容器内回环地址，不对�
 
 登录入口不限制请求的 `Origin`，不再将访问地址与 `APP_URL` 比较；密码和管理员权限仍需验证。登录成功、失败及退出登录均使用站内相对路径跳转，沿用浏览器当前的域名、协议和端口。这也意味着登录表单不再执行跨站来源校验。
 
-Nginx 与容器位于同一宿主机时，将后台代理到实际映射的宿主机端口；例如 `127.0.0.1:45476:3001` 应代理到 `http://127.0.0.1:45476`。使用默认端口映射时，可配置：
+后台表单提交时，镜像根据请求的有效 HTTP(S) `Origin` 动态补齐转发主机（含端口）和协议，避免代理头缺失或丢失端口导致 Next.js Server Actions 报错。修复不保存或匹配部署域名、外部端口、随机入口路径，也不需要配置 `APP_URL` 或来源白名单；更换访问地址后无需重新构建镜像。这会放宽 Server Actions 的同源校验，登录会话、允许名单和管理员角色检查仍然保留。后台响应附带 `X-Accel-Buffering: no`，通知 Nginx 及时转发表单操作的流式响应。
+
+Nginx 与容器位于同一宿主机时，`proxy_pass` 应指向 Compose 中实际映射的后台宿主机端口；该端口属于部署配置，不写入应用补丁。使用项目默认端口映射时，可配置：
 
 ```nginx
 location / {
     proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_buffering off;
     proxy_set_header Host $http_host;
     proxy_set_header X-Forwarded-Host $http_host;
     proxy_set_header X-Forwarded-Proto $scheme;
 }
 ```
+
+如果通过随机子路径进入，再由 Cookie 或 Referer 分流，请继续将后台的根路径请求（包括登录、静态资源和 `/dashboard/...`）路由到同一后台。应用不依赖入口路径的具体值，也不把它设为固定 `basePath`。推荐将公共代理头配置放在所有转发分支都能继承的位置，`$http_host` 可保留外部端口；后台表单的动态适配同时兼容分流后代理头缺失或不一致的情况。
 
 普通成员的角色和分组允许名单仍由上游后台管理；仅增加允许名单不会自动创建 Auth 密码账号。本镜像自动配置的是 Compose 指定的管理员，不额外提供公开注册或邮件找回密码。需要重置管理员密码时修改 Compose 并重建容器即可。
 
